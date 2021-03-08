@@ -1,7 +1,7 @@
 open! Compat
 
 module Code_block = struct
-  type t = { location : Odoc_model.Location_.span; contents : string }
+  type t = { location : Odoc_parser.Location.span; contents : string }
 end
 
 let drop_last lst =
@@ -14,8 +14,8 @@ let drop_first_and_last = function
   | [] -> None
   | first :: tl -> Some (first, drop_last tl)
 
-let slice lines ~(start : Odoc_model.Location_.point)
-    ~(end_ : Odoc_model.Location_.point) =
+let slice lines ~(start : Odoc_parser.Location.point)
+    ~(end_ : Odoc_parser.Location.point) =
   let lines_to_include =
     Util.Array.slice lines ~from:(start.line - 1) ~to_:(end_.line - 1)
     |> Array.to_list
@@ -65,7 +65,7 @@ let slice lines ~(start : Odoc_model.Location_.point)
    end of "[**", but doesn't add those three characters to the within-the-file column
    number. Here, we make the adjustment.
 *)
-let account_for_docstring_open_token (location : Odoc_model.Location_.span) =
+let account_for_docstring_open_token (location : Odoc_parser.Location.span) =
   let start_shift = 3 in
   let end_shift = if location.start.line = location.end_.line then 3 else 0 in
   {
@@ -78,7 +78,7 @@ let extract_code_blocks ~(location : Lexing.position) ~docstring =
   let rec acc blocks =
     List.map
       (fun block ->
-        match Odoc_model.Location_.value block with
+        match Odoc_parser.Location.value block with
         | `Code_block contents ->
             let location =
               if location.pos_lnum = block.location.start.line then
@@ -91,16 +91,16 @@ let extract_code_blocks ~(location : Lexing.position) ~docstring =
       blocks
     |> List.concat
   in
-  let parsed = Odoc_parser.parse_comment_raw ~location ~text:docstring in
+  let parsed = Odoc_parser.parse_comment ~location ~text:docstring in
   List.iter
-    (fun error -> failwith (Odoc_model.Error.to_string error))
+    (fun error -> failwith (Odoc_parser.Error.to_string error))
     parsed.warnings;
   List.map
     (fun element ->
-      match Odoc_model.Location_.value element with
+      match Odoc_parser.Location.value element with
       | #Odoc_parser.Ast.nestable_block_element as e ->
           acc
-            [ { Odoc_model.Location_.location = element.location; value = e } ]
+            [ { Odoc_parser.Location.location = element.location; value = e } ]
       | `Tag tag -> (
           match tag with
           | `Deprecated blocks -> acc blocks
@@ -128,10 +128,10 @@ let docstrings lexbuf =
   in
   loop [] |> List.rev
 
-let convert_pos (p : Lexing.position) (pt : Odoc_model.Location_.point) =
+let convert_pos (p : Lexing.position) (pt : Odoc_parser.Location.point) =
   { p with pos_lnum = pt.line; pos_cnum = pt.column }
 
-let convert_loc (loc : Location.t) (sp : Odoc_model.Location_.span) =
+let convert_loc (loc : Location.t) (sp : Odoc_parser.Location.span) =
   let loc_start = convert_pos loc.loc_start sp.start in
   let loc_end = convert_pos loc.loc_end sp.end_ in
   { loc with loc_start; loc_end }
@@ -155,7 +155,7 @@ let parse_mli file_contents =
      [Text] and [Block] parts by using the starts and ends of those blocks as
      boundaries. *)
   let code_blocks = docstring_code_blocks file_contents in
-  let cursor = ref { Odoc_model.Location_.line = 1; column = 0 } in
+  let cursor = ref { Odoc_parser.Location.line = 1; column = 0 } in
   let lines = String.split_on_char '\n' file_contents |> Array.of_list in
   let tokens =
     List.map
@@ -185,11 +185,11 @@ let parse_mli file_contents =
   in
   let eof =
     {
-      Odoc_model.Location_.line = Array.length lines;
+      Odoc_parser.Location.line = Array.length lines;
       column = String.length lines.(Array.length lines - 1);
     }
   in
-  let eof_is_beyond_location (loc : Odoc_model.Location_.point) =
+  let eof_is_beyond_location (loc : Odoc_parser.Location.point) =
     eof.line > loc.line || (eof.line = loc.line && eof.column > loc.column)
   in
   if eof_is_beyond_location !cursor then
