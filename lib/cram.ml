@@ -67,21 +67,12 @@ let pp ?pad ppf (t : t) =
   pp_lines (Output.pp ?pad) ppf t.output;
   pp_exit_code ?pad ppf t.exit_code
 
-let hpad_of_lines = function
-  | [] -> 0
-  | h :: _ ->
-      let i = ref 0 in
-      while !i < String.length h && h.[!i] = ' ' do
-        incr i
-      done;
-      !i
-
 let of_lines ~syntax ~(loc : Location.t) t =
   let pos = loc.loc_start in
   let hpad =
     match syntax with
     | Syntax.Mli | Mld -> pos.pos_cnum + 2
-    | _ -> hpad_of_lines t
+    | _ -> Misc.hpad_of_lines t
   in
   let unpad line =
     match syntax with
