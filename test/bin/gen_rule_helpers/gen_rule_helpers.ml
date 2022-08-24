@@ -54,8 +54,7 @@ type dir = {
 
 let test_file ~dir_name files =
   let is_test_file f =
-    f = cwd_test_file_md || f = cwd_test_file_t || f = cwd_test_file_mli
-    || f = cwd_test_file_mld
+    List.mem f [cwd_test_file_md; cwd_test_file_t; cwd_test_file_mli; cwd_test_file_mld]
   in
   match List.filter is_test_file files with
   | [ test_file ] -> test_file

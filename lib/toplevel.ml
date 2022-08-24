@@ -85,13 +85,13 @@ let of_lines ~syntax ~(loc : Location.t) t =
   let pos = loc.loc_start in
   let hpad =
     match syntax with
-    | Syntax.Mli | Mld -> pos.pos_cnum + 2
+    | Syntax.Mli -> pos.pos_cnum + 2
     | _ -> hpad_of_lines t
   in
   let unpad line =
     match syntax with
-    | Syntax.Mli | Syntax.Mld -> String.trim line
-    | Syntax.Normal | Syntax.Cram ->
+    | Syntax.Mli -> String.trim line
+    | Syntax.Normal | Syntax.Cram | Syntax.Mld ->
         if String.is_empty line then line
         else if String.length line < hpad then
           Fmt.failwith "invalid padding: %S" line

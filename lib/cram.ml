@@ -71,12 +71,12 @@ let of_lines ~syntax ~(loc : Location.t) t =
   let pos = loc.loc_start in
   let hpad =
     match syntax with
-    | Syntax.Mli | Mld -> pos.pos_cnum + 2
+    | Syntax.Mli -> pos.pos_cnum + 2
     | _ -> Misc.hpad_of_lines t
   in
   let unpad line =
     match syntax with
-    | Syntax.Mli | Mld -> String.trim line
+    | Syntax.Mli -> String.trim line
     | _ ->
         if String.is_empty line then line
         else if String.length line < hpad then

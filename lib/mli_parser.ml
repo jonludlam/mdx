@@ -263,5 +263,4 @@ let parse_mli file_contents =
   with exn -> Util.Result.errorf "%s" (Printexc.to_string exn)
 
 let parse_mld ~fname ~text =
-  try Result.Ok (parse_mld ~fname ~text)
-  with exn -> Util.Result.errorf "%s" (Printexc.to_string exn)
+  Result.Ok (parse_mld ~fname ~text)
