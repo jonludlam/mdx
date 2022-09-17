@@ -8,6 +8,7 @@ module Code_block = struct
     location : Odoc_parser.Loc.span;
     metadata : metadata option;
     contents : string;
+    has_results : bool;
   }
 end
 
@@ -58,14 +59,14 @@ let extract_code_blocks parsed =
     List.map
       (fun block ->
         match Odoc_parser.Loc.value block with
-        | `Code_block (metadata, { Odoc_parser.Loc.value = contents; _ }) ->
+        | `Code_block (metadata, { Odoc_parser.Loc.value = contents; _ }, results) ->
             let metadata =
               Option.map
                 (fun (language_tag, labels) ->
                   Code_block.{ language_tag; labels })
                 metadata
             in
-            [ { Code_block.location = block.location; metadata; contents } ]
+            [ { Code_block.location = block.location; metadata; contents; has_results = match results with | Some _ -> true | None -> false } ]
         | `List (_, _, lists) -> List.map acc lists |> List.concat
         | _ -> [])
       blocks
@@ -156,7 +157,7 @@ let make_block ~loc code_block =
       Block.mk ~loc ~section:None ~labels ~header ~contents ~legacy_labels:false
         ~errors:[]
 
-let code_block_markup code_block =
+let _code_block_markup code_block =
   let open Document in
   let opening =
     match code_block.Code_block.metadata with
@@ -176,7 +177,7 @@ let code_block_markup code_block =
     if not has_several_lines then ""
     else Astring.String.v ~len:column (fun _ -> ' ')
   in
-  (opening, [ Text (hpad ^ "]}") ])
+  (opening, [ Text (hpad ^ "}") ])
 
 let parse_general file_contents code_blocks =
   (* Find the locations of the code blocks within [file_contents], then slice it up into
@@ -197,9 +198,8 @@ let parse_general file_contents code_blocks =
           | Error (`Msg msg) ->
               failwith (Fmt.str "Error creating block: %s" msg)
         in
-        let opening, closing = code_block_markup code_block in
         cursor := code_block.location.end_;
-        [ pre_text ] @ opening @ [ block ] @ closing)
+        [ pre_text ] @ [ block ])
       code_blocks
     |> List.concat
   in

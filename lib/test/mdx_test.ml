@@ -147,17 +147,17 @@ let split_lines lines =
   List.fold_left aux [] (List.rev lines)
 
 let eval_ocaml ~block ?syntax ?root c ppf cmd errors =
-  let update ~errors = function
+  let update ~errors ~output = function
     | { Block.value = OCaml v; _ } as b ->
-        { b with value = OCaml { v with errors } }
+        { b with value = OCaml { v with errors }; output }
     (* [eval_ocaml] only called on OCaml blocks *)
     | _ -> assert false
   in
   let contains_warnings = String.is_infix ~affix:"Warning" in
-  let lines =
+  let mime_entries, lines =
     match eval_test ?root ~block c cmd with
-    | Ok lines -> List.filter contains_warnings lines
-    | Error lines -> lines
+    | Ok (mime_entries, lines) -> mime_entries, List.filter contains_warnings lines
+    | Error lines -> [], lines
   in
   let errors =
     match lines with
@@ -173,15 +173,16 @@ let eval_ocaml ~block ?syntax ?root c ppf cmd errors =
               | `Output x -> `Output (ansi_color_strip x))
             (Output.merge output errors)
   in
-  Block.pp ?syntax ppf (update ~errors block)
+  let odoc_output = List.map (fun x -> Mime_printer.to_odoc x) mime_entries |> String.concat ~sep:"\n" in
+  Block.pp ?syntax ppf (update ~errors block ~output:(match odoc_output with | "" -> None| s -> Some ("\n"^s)))
 
-let lines = function Ok x | Error x -> x
+let lines = function Ok x -> x | Error x -> [], x
 
 let run_toplevel_tests ?syntax ?root c ppf tests t =
   Block.pp_header ?syntax ppf t;
-  List.iter
+  let mime_entries = List.map
     (fun (test : Toplevel.t) ->
-      let lines = lines (eval_test ?root ~block:t c test.command) in
+      let (mime_output, lines) = lines (eval_test ?root ~block:t c test.command) in
       let lines = split_lines lines in
       let output =
         let output = List.map output_from_line lines in
@@ -195,10 +196,12 @@ let run_toplevel_tests ?syntax ?root c ppf tests t =
           | `Output line ->
               let line = ansi_color_strip line in
               Output.pp ~pad ppf (`Output line))
-        output)
-    tests;
-  Block.pp_footer ?syntax ppf t
-
+        output;
+      mime_output)
+    tests in
+  let odoc_output = List.map (fun x -> Mime_printer.to_odoc x) (List.concat mime_entries) |> String.concat ~sep:"\n" in
+  Block.pp_footer ?syntax ppf {t with output = (match odoc_output with | "" -> None | s -> Some ("\n"^s))}
+  
 type file = { first : Mdx.Part.file; current : Mdx.Part.file }
 
 let files : (string, file) Hashtbl.t = Hashtbl.create 8

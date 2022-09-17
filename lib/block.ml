@@ -80,6 +80,7 @@ type t = {
   set_variables : (string * string) list;
   unset_variables : string list;
   value : value;
+  output : string option;
 }
 
 let dump_string ppf s = Fmt.pf ppf "%S" s
@@ -148,9 +149,15 @@ let pp_errors ppf t =
       Fmt.string ppf "```\n"
   | _ -> ()
 
-let pp_footer ?syntax ppf _ =
+let pp_footer ?syntax ppf t =
   match syntax with
-  | Some Syntax.Mli | Some Syntax.Mld -> ()
+  | Some Syntax.Mli | Some Syntax.Mld -> (
+    (match t.contents with
+    | [ _line ] -> Format.fprintf ppf "%s" "]"
+    | _ -> Format.fprintf ppf "%*s%s" (t.loc.loc_start.pos_cnum) "" "]");
+    (match t.output with
+    | Some l -> Format.fprintf ppf "@%s}" l 
+    | None -> Format.fprintf ppf "}"))
   | Some Syntax.Cram -> ()
   | Some Syntax.Normal | None -> Fmt.string ppf "```\n"
 
@@ -173,7 +180,10 @@ let pp_header ?syntax ppf t =
       | [ Non_det (Some Nd_command) ] ->
           Fmt.pf ppf "<-- non-deterministic command\n"
       | _ -> failwith "cannot happen: checked during parsing")
-  | Some Syntax.Mli | Some Syntax.Mld -> ()
+  | Some Syntax.Mli | Some Syntax.Mld ->  (
+    match header t with
+    | None -> Fmt.pf ppf "{["
+    | Some h -> Fmt.pf ppf "{@%a%a[" Header.pp h pp_legacy_labels t.labels)
   | Some Syntax.Normal | None ->
       if t.legacy_labels then
         Fmt.pf ppf "```%a%a\n"
@@ -409,6 +419,7 @@ let mk ~loc ~section ~labels ~legacy_labels ~header ~contents ~errors =
     set_variables = config.set_variables;
     unset_variables = config.unset_variables;
     value;
+    output=None;
   }
 
 let mk_include ~loc ~section ~labels =

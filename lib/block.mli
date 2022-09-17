@@ -85,6 +85,7 @@ type t = {
   set_variables : (string * string) list;
   unset_variables : string list;
   value : value;
+  output : string option;
 }
 (** The type for supported code blocks. *)
 
