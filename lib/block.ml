@@ -114,6 +114,7 @@ type t = {
   set_variables : (string * string) list;
   unset_variables : string list;
   value : value;
+  (* output : string option; *)
 }
 
 let dump_section = Fmt.(Dump.pair int string)
@@ -164,7 +165,7 @@ let pp_errors ppf t =
   | OCaml { errors = []; _ } -> ()
   | OCaml { errors; _ } ->
       let errors = error_padding errors in
-      Fmt.pf ppf "```mdx-error\n%a\n```\n"
+      Fmt.pf ppf "```\n```mdx-error\n%a\n"
         Fmt.(list ~sep:(any "\n") Output.pp)
         errors
   | _ -> ()
@@ -230,8 +231,8 @@ let pp_header ?syntax ppf t =
 let pp ?syntax ppf b =
   pp_header ?syntax ppf b;
   pp_contents ?syntax ppf b;
-  pp_footer ?syntax ppf b;
-  pp_errors ppf b
+  pp_errors ppf b;
+  pp_footer ?syntax ppf b
 
 let directory t = t.dir
 let file t = match t.value with Include t -> Some t.file_included | _ -> None
