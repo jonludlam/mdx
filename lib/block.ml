@@ -81,6 +81,7 @@ type ocaml_value = {
   env : Ocaml_env.t;
   non_det : Label.non_det option;
   errors : Output.t list;
+  output : string option;
   header : Header.t option;
 }
 
@@ -114,7 +115,6 @@ type t = {
   set_variables : (string * string) list;
   unset_variables : string list;
   value : value;
-  (* output : string option; *)
 }
 
 let dump_section = Fmt.(Dump.pair int string)
@@ -160,14 +160,26 @@ let rec error_padding = function
       let xs = error_padding xs in
       x :: xs
 
-let pp_errors ppf t =
+let pp_output ?syntax ppf outputs =
+  match syntax with
+  | Some Syntax.Markdown ->
+    Fmt.pf ppf "```\n```mdx-error\n%a\n"
+      Fmt.(list ~sep:(any "\n") Output.pp)
+      outputs
+  | Some Syntax.Mli | Some Syntax.Mld ->
+    Fmt.pf ppf "]@@@@[\n{err@mdx-error[\n%a]err}\n"
+      Fmt.(list ~sep:(any "\n") Output.pp)
+      outputs
+  | _ -> ()
+
+let pp_value ?syntax ppf t =
   match t.value with
-  | OCaml { errors = []; _ } -> ()
+  | OCaml { errors = []; output = None; _ } -> ()
+  | OCaml { errors = []; output = Some s; _ } ->
+    pp_output ?syntax ppf [`Output s]
   | OCaml { errors; _ } ->
       let errors = error_padding errors in
-      Fmt.pf ppf "```\n```mdx-error\n%a\n"
-        Fmt.(list ~sep:(any "\n") Output.pp)
-        errors
+      pp_output ?syntax ppf errors
   | _ -> ()
 
 let pp_footer ?syntax ppf _ =
@@ -231,7 +243,7 @@ let pp_header ?syntax ppf t =
 let pp ?syntax ppf b =
   pp_header ?syntax ppf b;
   pp_contents ?syntax ppf b;
-  pp_errors ppf b;
+  pp_value ?syntax ppf b;
   pp_footer ?syntax ppf b
 
 let directory t = t.dir
@@ -329,7 +341,7 @@ let mk_ocaml ~loc ~config ~header ~contents ~errors =
   | { file_inc = None; part = None; env; non_det; _ } -> (
       (* TODO: why does this call guess_ocaml_kind when infer_block already did? *)
       match guess_ocaml_kind contents with
-      | `Code -> Ok (OCaml { env = Ocaml_env.mk env; non_det; errors; header })
+      | `Code -> Ok (OCaml { env = Ocaml_env.mk env; non_det; errors; header; output=None })
       | `Toplevel ->
           loc_error ~loc "toplevel syntax is not allowed in OCaml blocks.")
   | { file_inc = Some _; _ } -> label_not_allowed ~loc ~label:"file" ~kind

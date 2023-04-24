@@ -35,7 +35,7 @@ let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
      Fortunately the location info give us enough info to be able to extract
      the code from the original text, whitespace and all.
   *)
-  let handle_code_block : O.Loc.span -> _ -> Code_block.t =
+  let handle_code_block : O.Loc.span -> O.Ast.code_block -> Code_block.t =
     let convert_loc (sp : O.Loc.span) =
       Location.
         {
@@ -44,16 +44,16 @@ let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
           loc_ghost = false;
         }
     in
-    fun location (metadata, { O.Loc.location = span; _ }) ->
+    fun location c ->
       let metadata =
         Option.map
-          (fun (lang, labels) ->
-            let language_tag = O.Loc.value lang in
-            let labels = Option.map O.Loc.value labels in
+          (fun {O.Ast.language; tags} ->
+            let language_tag = O.Loc.value language in
+            let labels = Option.map O.Loc.value tags in
             Code_block.{ language_tag; labels })
-          metadata
+          c.O.Ast.lang
       in
-      let content = convert_loc span in
+      let content = convert_loc (O.Loc.location c.content) in
       let code_block = convert_loc location in
       { metadata; content; code_block }
   in
@@ -194,4 +194,6 @@ let parse_mld ?(filename = "_none_") file_contents =
   let code_blocks =
     extract_code_block_info [] ~location ~docstring:file_contents |> List.rev
   in
-  Ok (extract_blocks code_blocks file_contents)
+  let result = extract_blocks code_blocks file_contents in
+  Format.eprintf "%a\n%!" Document.dump result;
+  Ok result

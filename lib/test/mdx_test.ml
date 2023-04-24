@@ -347,7 +347,7 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
       | Include { file_included; file_kind = Fk_other _ } ->
           let new_content = read_part file_included None in
           update_block_content ?syntax ppf t new_content
-      | OCaml { non_det; env; errors; header = _ } ->
+      | OCaml { non_det; env; errors; header = _; output = _ } ->
           let det () =
             assert (syntax <> Some Cram);
             Mdx_top.in_env env (fun () ->

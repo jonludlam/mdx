@@ -34,6 +34,7 @@ type ocaml_value = {
   non_det : Label.non_det option;
   errors : Output.t list;
       (** [header] defines whether a header was specified for the block. *)
+  output : string option;
   header : Header.t option;
 }
 
