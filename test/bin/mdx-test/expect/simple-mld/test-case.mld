@@ -59,13 +59,9 @@ Indentation test:
   val x : int = 1
 ]}
 
-{@ocaml[
-let x =
-]@]@]@@[
-{err@mdx-error[
-Line 2, characters 3-4:
-Error: Syntax error]err}
-]}]}]}
+{delim@ocaml[
+let x = "]}"
+]delim}
 
 
 
