@@ -42,6 +42,7 @@ type toplevel_value = {
   env : Ocaml_env.t;
       (** [env] is the name given to the environment where tests are run. *)
   non_det : Label.non_det option;
+  top_output : string option;
 }
 
 type include_ocaml_file = {
@@ -104,6 +105,7 @@ type t = {
       (** Whether the current OCaml version complies with the block's version. *)
   set_variables : (string * string) list;
   unset_variables : string list;
+  delim : string option;
   value : value;
 }
 (** The type for supported code blocks. *)
@@ -114,6 +116,7 @@ val mk :
   labels:Label.t list ->
   legacy_labels:bool ->
   header:Header.t option ->
+  delim:string option ->
   contents:string list ->
   errors:Output.t list ->
   (t, [ `Msg of string ]) result

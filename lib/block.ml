@@ -85,7 +85,7 @@ type ocaml_value = {
   header : Header.t option;
 }
 
-type toplevel_value = { env : Ocaml_env.t; non_det : Label.non_det option }
+type toplevel_value = { env : Ocaml_env.t; non_det : Label.non_det option; top_output : string option }
 type include_ocaml_file = { part_included : string option }
 type include_other_file = { header : Header.t option }
 
@@ -161,18 +161,24 @@ let rec error_padding = function
       let xs = error_padding xs in
       x :: xs
 
-let pp_output ?syntax ?delim ppf outputs =
+let pp_error ?syntax ?delim ppf outputs =
   match syntax with
   | Some Syntax.Markdown ->
     Fmt.pf ppf "```\n```mdx-error\n%a\n"
       Fmt.(list ~sep:(any "\n") Output.pp)
       outputs
   | Some Syntax.Mli | Some Syntax.Mld ->
-    Fmt.pf ppf "]@@%a@@[\n{err@mdx-error[\n%a]err}\n"
+    Fmt.pf ppf "]%a[\n{err@mdx-error[\n%a]err}\n"
       Fmt.(option string)
       delim
       Fmt.(list ~sep:(any "\n") Output.pp)
       outputs
+  | _ -> ()
+
+let pp_output ?syntax ppf delim l =
+  match syntax with
+  | Some Syntax.Mli | Some Syntax.Mld ->
+    Fmt.pf ppf "]%a[\n%s\n" Fmt.(option string) delim l
   | _ -> ()
 
 let has_output t =
@@ -180,20 +186,29 @@ let has_output t =
   | OCaml { errors = []; output = None; _ } -> false
   | OCaml { errors = []; output = Some _; _ } -> true
   | OCaml { errors = _; _ } -> true
+  | Toplevel { top_output = Some _; _ } -> true
   | _ -> false
 
 let pp_value ?syntax ppf t =
   let delim = t.delim in
   match t.value with
   | OCaml { errors = []; output = None; _ } -> ()
-  | OCaml { errors = []; output = Some s; _ } ->
-    pp_output ?syntax ?delim ppf [`Output s]
+  | Toplevel { top_output = Some t; _ }
+  | OCaml { errors = []; output = Some t; _ } ->
+    pp_output ?syntax ppf delim t
   | OCaml { errors; _ } ->
       let errors = error_padding errors in
-      pp_output ?syntax ?delim ppf errors
+      pp_error ?syntax ?delim ppf errors
   | _ -> ()
 
-let pp_footer ?syntax ?delim ppf _ =
+let pp_footer ?syntax ppf t =
+  let delim =
+    if has_output t
+    then
+      (pp_value ?syntax ppf t;
+      None)
+    else t.delim
+  in
   match syntax with
   | Some Syntax.Mli | Some Syntax.Mld -> Fmt.(pf ppf "]%a}" (option string) delim)
   | Some Syntax.Cram -> Fmt.string ppf "\n"
@@ -258,9 +273,7 @@ let pp_header ?syntax ppf t =
 let pp ?syntax ppf b =
   pp_header ?syntax ppf b;
   pp_contents ?syntax ppf b;
-  pp_value ?syntax ppf b;
-  let delim = if has_output b then None else b.delim in
-  pp_footer ?syntax ?delim ppf b
+  pp_footer ?syntax ppf b
 
 let directory t = t.dir
 let file t = match t.value with Include t -> Some t.file_included | _ -> None
@@ -388,7 +401,7 @@ let mk_toplevel ~loc ~config ~contents ~errors =
       | `Code -> loc_error ~loc "invalid toplevel syntax in toplevel blocks."
       | `Toplevel ->
           let+ () = check_no_errors ~loc errors in
-          Toplevel { env = Ocaml_env.mk env; non_det })
+          Toplevel { env = Ocaml_env.mk env; non_det; top_output=None })
   | { file_inc = Some _; _ } -> label_not_allowed ~loc ~label:"file" ~kind
   | { part = Some _; _ } -> label_not_allowed ~loc ~label:"part" ~kind
 

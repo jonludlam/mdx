@@ -52,7 +52,7 @@ let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
             let language_tag = O.Loc.value language in
             let labels = Option.map O.Loc.value tags in
             Code_block.{ language_tag; labels })
-          c.O.Ast.lang
+          c.O.Ast.meta
       in
       let content = convert_loc (O.Loc.location c.content) in
       let code_block = convert_loc location in

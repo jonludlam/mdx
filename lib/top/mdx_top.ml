@@ -447,7 +447,7 @@ let eval t cmd =
               | None -> [])
             phrases
           |> List.concat
-          |> fun x -> if !errors then Error x else Ok x))
+          |> fun x -> if !errors then Error x else Ok (Mime_printer.get (), x)))
 
 let add_directive ~name ~doc kind =
   let directive =
@@ -662,6 +662,10 @@ let init ~verbose:v ~silent:s ~verbose_findlib ~directives ~packages ~predicates
       | Directory path -> Topdirs.dir_directory path
       | Load path -> Topdirs.dir_load Format.err_formatter path)
     directives;
+  let stdlib_path = Config.standard_library in
+  let stub = String.sub stdlib_path 0 (String.length stdlib_path - String.length "ocaml") in
+  let mime_printer = stub ^ "mime_printer" in
+  Topdirs.dir_directory mime_printer;
   Topfind.don't_load_deeply packages;
   Topfind.add_predicates predicates;
   (* [require] directive is overloaded to toggle the [errors] reference when

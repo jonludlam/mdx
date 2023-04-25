@@ -432,6 +432,18 @@
  (action (diff requires/test-case.md requires.actual)))
 
 (rule
+ (target rich-mdx.actual)
+ (deps (package mdx) (source_tree rich-mdx))
+ (action
+  (with-stdout-to %{target}
+   (chdir rich-mdx
+    (run ocaml-mdx test --output - test-case.mld)))))
+
+(rule
+ (alias runtest)
+ (action (diff rich-mdx/test-case.mld rich-mdx.actual)))
+
+(rule
  (target root-option.actual)
  (deps (package mdx) (source_tree root-option))
  (action

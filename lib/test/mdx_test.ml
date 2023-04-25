@@ -190,9 +190,9 @@ let rec remove_padding ?(front = true) = function
       let xs = remove_padding ~front xs in
       x :: xs
 
-let update_ocaml ~errors = function
+let update_ocaml ~errors ~output = function
   | { Block.value = OCaml v; _ } as b ->
-      { b with value = OCaml { v with errors } }
+      { b with value = OCaml { v with errors; output } }
   (* [eval_ocaml] only called on OCaml blocks *)
   | _ -> assert false
 
@@ -206,10 +206,10 @@ let rec error_padding = function
 let eval_ocaml ~(block : Block.t) ?syntax ?root c ppf errors =
   let cmd = block.contents |> remove_padding in
   let contains_warnings = String.is_infix ~affix:"Warning" in
-  let error_lines =
+  let mime_entries, error_lines =
     match eval_test ?root ~block c cmd with
-    | Ok lines -> List.filter contains_warnings lines
-    | Error lines -> lines
+    | Ok (mime_entries, lines) -> mime_entries, List.filter contains_warnings lines
+    | Error lines -> [], lines
   in
   let errors =
     match error_lines with
@@ -227,26 +227,47 @@ let eval_ocaml ~(block : Block.t) ?syntax ?root c ppf errors =
               | `Output x -> `Output (ansi_color_strip x))
             (Output.merge output errors)
   in
-  let updated_block = update_ocaml ~errors block in
+  let output =
+    match mime_entries with
+    | [] ->
+      None
+    | _ ->
+      Some (List.map (fun x -> Mime_printer.to_odoc x) mime_entries |> String.concat ~sep:"\n")
+  in
+  let updated_block = update_ocaml ~errors ~output block in
   Block.pp ?syntax ppf updated_block
 
-let lines = function Ok x | Error x -> x
+let lines = function Ok x -> x | Error x -> [], x
 
 let run_toplevel_tests ?syntax ?root c ppf Toplevel.{ tests; end_pad } block =
   Block.pp_header ?syntax ppf block;
+  let outputs = ref [] in
   let pp_test ppf (test : Toplevel.t) =
-    let lines = eval_test ?root ~block c test.command |> lines |> split_lines in
+    let (mime_output, lines) = eval_test ?root ~block c test.command |> lines in
+    let lines = split_lines lines in
     let output_received = List.map output_from_line lines in
     let output_expected = test.output in
     let output_equal = Output.equal output_received output_expected in
     let output = if output_equal then output_expected else output_received in
     let output = pad_output ~pad_blank:false test.hpad output in
     Toplevel.pp_command ppf test;
+    outputs := !outputs @ mime_output;
     match output with [] -> () | output -> pp_outputs ppf output
   in
   let pp_tests = Fmt.list ~sep:(Fmt.any "\n") pp_test in
   pp_tests ppf tests;
   Option.iter (Fmt.pf ppf "\n%s") end_pad;
+  let output =
+    if List.length !outputs = 0 then None else Some (List.map (fun x -> Mime_printer.to_odoc x) !outputs |> String.concat ~sep:"\n") in
+  let block =
+    match block.value with
+    | OCaml _ -> update_ocaml ~errors:[] ~output block
+    | Toplevel v ->
+      if List.length !outputs > 0 then begin
+        Format.eprintf "Updating outputs...\n%!";
+        {block with value = Toplevel {v with Block.top_output = output }}
+      end else block
+    | _ -> block in
   Block.pp_footer ?syntax ppf block
 
 type file = { first : Mdx.Part.file; current : Mdx.Part.file }
@@ -366,7 +387,7 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
                 tests.Cram.tests)
             ~on_evaluation:(fun () ->
               run_cram_tests ?syntax t ?root ppf temp_file tests)
-      | Toplevel { non_det; env } ->
+      | Toplevel { non_det; env; _ } ->
           let phrases = Toplevel.of_lines ~loc:t.loc t.contents in
           with_non_det non_deterministic non_det ~on_skip_execution:print_block
             ~on_keep_old_output:(fun () ->
