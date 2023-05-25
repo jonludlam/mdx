@@ -35,6 +35,7 @@ let run_exn (`Setup ()) (`Non_deterministic non_deterministic)
       Mdx_test.Package.findlib_top;
       Mdx_test.Package.findlib_internal;
       Mdx_test.Package.compilerlibs_toplevel;
+      Mdx_test.Package.mime_printer;
     ]
   in
   let predicates = [ Mdx_test.Predicate.byte; Mdx_test.Predicate.toploop ] in

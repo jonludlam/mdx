@@ -5,6 +5,7 @@ This is an example of a rich mdx document.
 {@ocaml[
 # #require "base64";;
 # #require "imagelib";;
+# #require "mime_printer";;
 # print_endline "Hello, retrospective!";;
 Hello, retrospective!
 - : unit = ()

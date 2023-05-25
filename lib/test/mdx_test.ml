@@ -449,6 +449,7 @@ module Package = struct
   let findlib_top = "findlib.top"
   let findlib_internal = "findlib.internal"
   let compilerlibs_toplevel = "compiler-libs.toplevel"
+  let mime_printer = "mime_printer"
 end
 
 module Predicate = struct
