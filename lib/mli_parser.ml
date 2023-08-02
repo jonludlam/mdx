@@ -20,7 +20,7 @@ end
 
    The results are prepended in reverse order onto [acc]. *)
 let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
-  let module O = Odoc_parser in
+  let module O = Odoc_parser_mdx.Odoc_parser in
   let parsed = O.parse_comment ~location ~text:docstring in
 
   (* If odoc-parser produced any warnings, we raise them as errors here *)

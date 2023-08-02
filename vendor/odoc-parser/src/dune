@@ -1,7 +1,7 @@
 (ocamllex lexer)
 
 (library
- (name odoc_parser)
+ (name odoc_parser_mdx)
  (package mdx)
  (flags
   (:standard -w -50))

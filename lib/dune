@@ -10,7 +10,7 @@
   fmt
   logs
   ocaml-version
-  odoc_parser
+  odoc_parser_mdx
   re
   str
   compiler-libs.common
