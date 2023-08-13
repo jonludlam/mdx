@@ -35,7 +35,7 @@ val init :
   t
 (** [init ()] is a new configuration value. *)
 
-val eval : t -> string list -> (string list, string list) result
+val eval : t -> string list -> (Mime_printer.t list * string list, string list) result
 (** [eval t p] evaluates the toplevel phrase [p] (possibly spawning on
     mulitple lines) with the configuration value [t]. *)
 

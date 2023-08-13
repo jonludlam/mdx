@@ -447,7 +447,7 @@ let eval t cmd =
               | None -> [])
             phrases
           |> List.concat
-          |> fun x -> if !errors then Error x else Ok x))
+          |> fun x -> if !errors then Error x else Ok (Mime_printer.get (), x)))
 
 let add_directive ~name ~doc kind =
   let directive =

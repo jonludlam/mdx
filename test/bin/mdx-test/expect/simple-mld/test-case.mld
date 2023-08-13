@@ -59,4 +59,20 @@ Indentation test:
   val x : int = 1
 ]}
 
+{delim@ocaml[
+let x = "]}
+]delim[
+{err@mdx-error[
+Line 1, characters 9-10:
+Error: String literal not terminated]err}
+]}
+
+{delim@ocaml[
+# Printf.printf "Hello, world!\n%!";;
+Hello, world!
+- : unit = ()
+]delim}
+
+
+
 

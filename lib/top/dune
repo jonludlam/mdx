@@ -11,4 +11,5 @@
   compiler-libs
   compiler-libs.toplevel
   threads
-  findlib.top))
+  findlib.top
+  mime_printer))

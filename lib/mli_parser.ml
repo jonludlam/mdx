@@ -3,6 +3,7 @@ module Code_block = struct
 
   type t = {
     metadata : metadata option;
+    delimiter : string option;
     content : Location.t; (* Location of the content *)
     code_block : Location.t; (* Location of the enclosing code block *)
   }
@@ -35,7 +36,7 @@ let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
      Fortunately the location info give us enough info to be able to extract
      the code from the original text, whitespace and all.
   *)
-  let handle_code_block : O.Loc.span -> _ -> Code_block.t =
+  let handle_code_block : O.Loc.span -> O.Ast.code_block -> Code_block.t =
     let convert_loc (sp : O.Loc.span) =
       Location.
         {
@@ -44,18 +45,19 @@ let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
           loc_ghost = false;
         }
     in
-    fun location (metadata, { O.Loc.location = span; _ }) ->
+    fun location c ->
       let metadata =
         Option.map
-          (fun (lang, labels) ->
-            let language_tag = O.Loc.value lang in
-            let labels = Option.map O.Loc.value labels in
+          (fun {O.Ast.language; tags} ->
+            let language_tag = O.Loc.value language in
+            let labels = Option.map O.Loc.value tags in
             Code_block.{ language_tag; labels })
-          metadata
+          c.O.Ast.meta
       in
-      let content = convert_loc span in
+      let content = convert_loc (O.Loc.location c.content) in
       let code_block = convert_loc location in
-      { metadata; content; code_block }
+      let delimiter = c.delimiter in
+      { metadata; content; code_block; delimiter }
   in
 
   (* Fold over the results from odoc-parser, recurse where necessary
@@ -146,8 +148,9 @@ let make_block code_block file_contents =
         let len = loc.loc_end.pos_cnum - start in
         String.sub file_contents start len
       in
+      let delim = code_block.delimiter in
       let contents = slice code_block.content |> String.split_on_char '\n' in
-      Block.mk ~loc:code_block.code_block ~section:None ~labels ~header
+      Block.mk ~loc:code_block.code_block ~section:None ~labels ~header ~delim
         ~contents ~legacy_labels:false ~errors:[]
 
 (* Given the locations of the code blocks within [file_contents], then slice it up into
@@ -194,4 +197,5 @@ let parse_mld ?(filename = "_none_") file_contents =
   let code_blocks =
     extract_code_block_info [] ~location ~docstring:file_contents |> List.rev
   in
-  Ok (extract_blocks code_blocks file_contents)
+  let result = extract_blocks code_blocks file_contents in
+  Ok result

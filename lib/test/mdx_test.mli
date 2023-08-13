@@ -5,6 +5,7 @@ module Package : sig
   val findlib_top : string
   val findlib_internal : string
   val compilerlibs_toplevel : string
+  val mime_printer : string
 end
 
 module Predicate : sig

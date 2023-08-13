@@ -81,10 +81,11 @@ type ocaml_value = {
   env : Ocaml_env.t;
   non_det : Label.non_det option;
   errors : Output.t list;
+  output : string option;
   header : Header.t option;
 }
 
-type toplevel_value = { env : Ocaml_env.t; non_det : Label.non_det option }
+type toplevel_value = { env : Ocaml_env.t; non_det : Label.non_det option; top_output : string option }
 type include_ocaml_file = { part_included : string option }
 type include_other_file = { header : Header.t option }
 
@@ -113,6 +114,7 @@ type t = {
   version_enabled : bool;
   set_variables : (string * string) list;
   unset_variables : string list;
+  delim : string option;
   value : value;
 }
 
@@ -159,19 +161,56 @@ let rec error_padding = function
       let xs = error_padding xs in
       x :: xs
 
-let pp_errors ppf t =
-  match t.value with
-  | OCaml { errors = []; _ } -> ()
-  | OCaml { errors; _ } ->
-      let errors = error_padding errors in
-      Fmt.pf ppf "```mdx-error\n%a\n```\n"
-        Fmt.(list ~sep:(any "\n") Output.pp)
-        errors
+let pp_error ?syntax ?delim ppf outputs =
+  match syntax with
+  | Some Syntax.Markdown ->
+    Fmt.pf ppf "```\n```mdx-error\n%a\n"
+      Fmt.(list ~sep:(any "\n") Output.pp)
+      outputs
+  | Some Syntax.Mli | Some Syntax.Mld ->
+    Fmt.pf ppf "]%a[\n{err@mdx-error[\n%a]err}\n"
+      Fmt.(option string)
+      delim
+      Fmt.(list ~sep:(any "\n") Output.pp)
+      outputs
   | _ -> ()
 
-let pp_footer ?syntax ppf _ =
+let pp_output ?syntax ppf delim l =
   match syntax with
-  | Some Syntax.Mli | Some Syntax.Mld -> Fmt.string ppf "]}"
+  | Some Syntax.Mli | Some Syntax.Mld ->
+    Fmt.pf ppf "]%a[\n%s\n" Fmt.(option string) delim l
+  | _ -> ()
+
+let has_output t =
+  match t.value with
+  | OCaml { errors = []; output = None; _ } -> false
+  | OCaml { errors = []; output = Some _; _ } -> true
+  | OCaml { errors = _; _ } -> true
+  | Toplevel { top_output = Some _; _ } -> true
+  | _ -> false
+
+let pp_value ?syntax ppf t =
+  let delim = t.delim in
+  match t.value with
+  | OCaml { errors = []; output = None; _ } -> ()
+  | Toplevel { top_output = Some t; _ }
+  | OCaml { errors = []; output = Some t; _ } ->
+    pp_output ?syntax ppf delim t
+  | OCaml { errors; _ } ->
+      let errors = error_padding errors in
+      pp_error ?syntax ?delim ppf errors
+  | _ -> ()
+
+let pp_footer ?syntax ppf t =
+  let delim =
+    if has_output t
+    then
+      (pp_value ?syntax ppf t;
+      None)
+    else t.delim
+  in
+  match syntax with
+  | Some Syntax.Mli | Some Syntax.Mld -> Fmt.(pf ppf "]%a}" (option string) delim)
   | Some Syntax.Cram -> Fmt.string ppf "\n"
   | Some Syntax.Markdown | None -> Fmt.string ppf "```\n"
 
@@ -206,6 +245,10 @@ let pp_header ?syntax ppf t =
           (function Label.Language_tag _ -> true | _ -> false)
           t.labels
       in
+      let pp_delim ppf = function
+        | Some s -> Fmt.pf ppf "%s" s
+        | None -> ()
+      in
       let pp_lang_header ppf = function
         | [] -> ()
         | [ l ] -> Fmt.pf ppf "@%a" Label.pp l
@@ -215,7 +258,7 @@ let pp_header ?syntax ppf t =
         | [] -> ()
         | labels -> Fmt.pf ppf " %a" (pp_labels ?syntax) labels
       in
-      Fmt.pf ppf "{%a%a[" pp_lang_header lang_headers pp_labels other_labels
+      Fmt.pf ppf "{%a%a%a[" pp_delim t.delim pp_lang_header lang_headers pp_labels other_labels
   | Some Syntax.Cram -> pp_labels ?syntax ppf t.labels
   | Some Syntax.Markdown | None ->
       if t.legacy_labels then
@@ -230,8 +273,7 @@ let pp_header ?syntax ppf t =
 let pp ?syntax ppf b =
   pp_header ?syntax ppf b;
   pp_contents ?syntax ppf b;
-  pp_footer ?syntax ppf b;
-  pp_errors ppf b
+  pp_footer ?syntax ppf b
 
 let directory t = t.dir
 let file t = match t.value with Include t -> Some t.file_included | _ -> None
@@ -328,7 +370,7 @@ let mk_ocaml ~loc ~config ~header ~contents ~errors =
   | { file_inc = None; part = None; env; non_det; _ } -> (
       (* TODO: why does this call guess_ocaml_kind when infer_block already did? *)
       match guess_ocaml_kind contents with
-      | `Code -> Ok (OCaml { env = Ocaml_env.mk env; non_det; errors; header })
+      | `Code -> Ok (OCaml { env = Ocaml_env.mk env; non_det; errors; header; output=None })
       | `Toplevel ->
           loc_error ~loc "toplevel syntax is not allowed in OCaml blocks.")
   | { file_inc = Some _; _ } -> label_not_allowed ~loc ~label:"file" ~kind
@@ -359,7 +401,7 @@ let mk_toplevel ~loc ~config ~contents ~errors =
       | `Code -> loc_error ~loc "invalid toplevel syntax in toplevel blocks."
       | `Toplevel ->
           let+ () = check_no_errors ~loc errors in
-          Toplevel { env = Ocaml_env.mk env; non_det })
+          Toplevel { env = Ocaml_env.mk env; non_det; top_output=None })
   | { file_inc = Some _; _ } -> label_not_allowed ~loc ~label:"file" ~kind
   | { part = Some _; _ } -> label_not_allowed ~loc ~label:"part" ~kind
 
@@ -402,7 +444,7 @@ let infer_block ~loc ~config ~header ~contents ~errors =
           let+ () = check_no_errors ~loc errors in
           Raw { header })
 
-let mk ~loc ~section ~labels ~legacy_labels ~header ~contents ~errors =
+let mk ~loc ~section ~labels ~legacy_labels ~header ~delim ~contents ~errors =
   let block_kind =
     get_label (function Block_kind x -> Some x | _ -> None) labels
   in
@@ -427,6 +469,7 @@ let mk ~loc ~section ~labels ~legacy_labels ~header ~contents ~errors =
     version_enabled;
     set_variables = config.set_variables;
     unset_variables = config.unset_variables;
+    delim;
     value;
   }
 
@@ -434,7 +477,7 @@ let mk_include ~loc ~section ~labels =
   match get_label (function File x -> Some x | _ -> None) labels with
   | Some file_inc ->
       let header = Header.infer_from_file file_inc in
-      mk ~loc ~section ~labels ~legacy_labels:false ~header ~contents:[]
+      mk ~loc ~section ~labels ~legacy_labels:false ~header ~delim:None ~contents:[]
         ~errors:[]
   | None -> label_required ~loc ~label:"file" ~kind:"include"
 
@@ -460,7 +503,7 @@ let from_raw raw =
         locate_errors ~loc (parse_labels ~label_cmt ~legacy_labels)
       in
       Util.Result.to_error_list
-      @@ mk ~loc ~section ~header ~contents ~labels ~legacy_labels ~errors
+      @@ mk ~loc ~section ~header ~contents ~labels ~legacy_labels ~errors ~delim:None
 
 let is_active ?section:s t =
   let active =
