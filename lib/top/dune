@@ -12,4 +12,5 @@
   compiler-libs.toplevel
   threads
   findlib.top
-  mime_printer))
+  mime_printer
+  js_top_worker logs logs.fmt rpclib.core bos))

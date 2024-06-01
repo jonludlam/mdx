@@ -46,6 +46,8 @@ type t =
   | Unset of string
   | Block_kind of block_kind
   | Language_tag of string
+  | DeferredJs
+  | Other of string
 
 val pp : t Fmt.t
 

@@ -39,4 +39,7 @@ val eval : t -> string list -> (Mime_printer.t list * string list, string list) 
 (** [eval t p] evaluates the toplevel phrase [p] (possibly spawning on
     mulitple lines) with the configuration value [t]. *)
 
+val compile_js : t -> string option -> string -> (string, string list) result
+
+
 val in_env : Mdx.Ocaml_env.t -> (unit -> 'a) -> 'a

@@ -237,6 +237,28 @@ let eval_ocaml ~(block : Block.t) ?syntax ?root c ppf errors =
   let updated_block = update_ocaml ~errors ~output block in
   Block.pp ?syntax ppf updated_block
 
+let id = ref 0
+
+let eval_ocaml_deferred_js ~(block : Block.t) ?syntax ?root c ppf errors =
+  let cmd = block.contents |> remove_padding |> String.concat ~sep:"\n" in
+  let contains_warnings = String.is_infix ~affix:"Warning" in
+  incr id;
+  let id = Printf.sprintf "id_%d" !id in
+  let mime_entries =
+    match Mdx_top.compile_js c (Some id) cmd with
+    | Ok s -> [Mime_printer.{ mime_type="text/javascript"; encoding=Noencoding; data=s}]
+    | Error lines -> []
+  in
+  let output =
+    match mime_entries with
+    | [] ->
+      None
+    | _ ->
+      Some (List.map (fun x -> Mime_printer.to_odoc x) mime_entries |> String.concat ~sep:"\n")
+  in
+  let updated_block = update_ocaml ~errors ~output block in
+  Block.pp ?syntax ppf updated_block
+  
 let lines = function Ok x -> x | Error x -> [], x
 
 let run_toplevel_tests ?syntax ?root c ppf Toplevel.{ tests; end_pad } block =
@@ -343,6 +365,23 @@ let preludes ~prelude ~prelude_str =
   | fs, [] -> List.map parse fs
   | _ -> Fmt.failwith "only one of --prelude or --prelude-str should be used"
 
+type meta = {
+  libs : string list;
+}
+
+let parse_meta lines =
+  let str = String.concat ~sep:"\n" lines in
+  let json = Yojson.Safe.from_string str in
+  match json with
+  | `Assoc x -> 
+    let libs = 
+      match List.assoc_opt "libs" x with
+      | Some (`List l) -> List.map (function `String s -> s | _ -> assert false) l
+      | _ -> []
+    in
+    Ok { libs }
+  | _ -> Error (`Msg "bad json")
+
 let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
     ~verbose_findlib ~prelude ~prelude_str ~file ~section ~root ~force_output
     ~output ~directives ~packages ~predicates =
@@ -350,11 +389,22 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
   let syntax =
     match syntax with Some syntax -> Some syntax | None -> Syntax.infer ~file
   in
-  let c =
-    Mdx_top.init ~verbose:(not silent_eval) ~silent ~verbose_findlib ~directives
-      ~packages ~predicates ()
+  let context = ref None in
+  let init_c libs =
+    let c = Mdx_top.init ~verbose:(not silent_eval) ~silent ~verbose_findlib ~directives
+      ~packages:(packages @ libs) ~predicates () in
+    context := Some c;
+  in
+  let rec c () =
+    match !context with | Some c -> c | None -> init_c []; c () 
   in
   let preludes = preludes ~prelude ~prelude_str in
+
+  let get_libs (block : Block.t) =
+    if List.exists (function | Label.Language_tag "meta" -> true | _ -> false) block.labels then
+      match parse_meta block.contents with | Ok m -> m.libs | Error _ -> []
+    else []
+  in
 
   let test_block ~ppf ~temp_file t =
     let print_block () = Block.pp ?syntax ppf t in
@@ -369,9 +419,17 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
           let new_content = read_part file_included None in
           update_block_content ?syntax ppf t new_content
       | OCaml { non_det; env; errors; header = _; output = _ } ->
+          let deferredjs = List.mem Label.DeferredJs t.labels in
           let det () =
             assert (syntax <> Some Cram);
-            Mdx_top.in_env env (fun () ->
+            if deferredjs
+            then
+              let c = c () in
+              Mdx_top.in_env env (fun () ->
+                eval_ocaml_deferred_js ~block:t ?syntax ?root c ppf errors)
+            else
+              let c = c () in
+              Mdx_top.in_env env (fun () ->
                 eval_ocaml ~block:t ?syntax ?root c ppf errors)
           in
           with_non_det non_deterministic non_det ~on_skip_execution:print_block
@@ -395,6 +453,7 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
               print_block ();
               List.iter
                 (fun (phrase : Toplevel.t) ->
+                  let c = c () in
                   match
                     Mdx_top.in_env env (fun () ->
                         eval_test ~block:t ?root c phrase.command)
@@ -407,6 +466,7 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
                 phrases.tests)
             ~on_evaluation:(fun () ->
               assert (syntax <> Some Cram);
+              let c = c () in
               Mdx_top.in_env env (fun () ->
                   run_toplevel_tests ?syntax ?root c ppf phrases t))
     else print_block ()
@@ -417,6 +477,9 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
     let buf = Buffer.create (String.length file_contents + 1024) in
     let ppf = Format.formatter_of_buffer buf in
     let envs = Document.envs items in
+    let all_libs = List.map (function Block b -> get_libs b | _ -> []) items |> List.flatten in
+    let () = init_c all_libs in
+    let c = c () in
     let eval lines () = eval_raw ?root c lines in
     let eval_in_env lines env = Mdx_top.in_env env (eval lines) in
     List.iter

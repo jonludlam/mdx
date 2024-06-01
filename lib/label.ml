@@ -96,6 +96,8 @@ type t =
      any. Can be left out if none is specified, in such case it will also
      not be added back. *)
   | Language_tag of string
+  | DeferredJs
+  | Other of string
 
 let pp_block_kind ppf = function
   | OCaml -> Fmt.string ppf "ocaml"
@@ -119,6 +121,8 @@ let pp ppf = function
   | Unset x -> Fmt.pf ppf "unset-%s" x
   | Block_kind bk -> pp_block_kind ppf bk
   | Language_tag language_tag -> Fmt.string ppf language_tag
+  | DeferredJs -> Fmt.string ppf "deferred-js"
+  | Other s -> Fmt.string ppf s
 
 let is_prefix ~prefix s =
   let len_prefix = String.length prefix in
@@ -187,7 +191,10 @@ let interpret label value =
   | l when is_prefix ~prefix:"set-" l ->
       requires_eq_value ~label ~value (fun x ->
           Set (split_prefix ~prefix:"set-" l, x))
-  | l -> Error (`Msg (Format.sprintf "`%s` is not a valid label." l))
+  | "deferred-js" ->
+    Format.eprintf "Got deferred-js\n%!";
+    doesnt_accept_value ~label ~value DeferredJs
+  | l -> Ok (Other l)
 
 let of_string s =
   let f acc s =
