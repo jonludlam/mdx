@@ -54,17 +54,21 @@ module UnixWorker = struct
         Sys.remove filename_err)
 
   let sync_get _ = None
-  let create_file ~name:_ ~content:_ = failwith "Not implemented"
+  let create_file ~name:_ ~content:_ = failwith "Not implemented: create_file"
 
-  let import_scripts _ = failwith "Not implemented"
+  let import_scripts urls =
+    if urls = [] then () else begin
+      List.iter (fun url -> Format.eprintf "Not importing: %s\n%!" url) urls;
+      failwith "Not implemented: import_scripts"
+    end
 
-  let init_function _ = failwith "Not implemented"
+  let init_function _ = failwith "Not implemented: init_function"
       
 end
 
 module U = Js_top_worker.Impl.Make (UnixWorker)
 
-open Bos
+(* open Bos *)
 
 type directive =
   | Directory of string
@@ -117,8 +121,8 @@ let init ~verbose:_ ~silent:_ ~verbose_findlib:_ ~directives:_ ~packages ~predic
   | Ok x ->
     Format.eprintf "All OK here!\n%!";
     x
-  | Error _ ->
-    Format.eprintf "Bad stuff here!\n%!";
+  | Error (InternalError e) ->
+    Format.eprintf "Bad stuff here! '%s'\n%!" e;
     failwith "error"
 
 
@@ -126,15 +130,15 @@ let eval () list =
   match U.execute (String.concat "\n" list) |> IdlM.T.get |> M.run with
   | Ok r ->
     Ok (r.mime_vals, (Option.to_list r.stdout) @ (Option.to_list r.stderr) @ (Option.to_list r.caml_ppf))
-  | Error e -> Error ["error"]
+  | Error _e -> Error ["error"]
 
 let compile_js () id str =
   match U.compile_js id str |> IdlM.T.get |> M.run with
   | Ok r ->
-    Format.eprintf "All OK here too!\n%!";
+    Format.eprintf "All OK here too! %s\n%!" r;
     Ok (r)
-  | Error _ ->
-    Format.eprintf "Bad stuff here this time!\n%!";
+  | Error (InternalError m) ->
+    Format.eprintf "Bad stuff here this time! '%s'\n%!" m;
     Error ["Error in compile_js"]
 
 let in_env _ f = f ()

@@ -239,15 +239,16 @@ let eval_ocaml ~(block : Block.t) ?syntax ?root c ppf errors =
 
 let id = ref 0
 
-let eval_ocaml_deferred_js ~(block : Block.t) ?syntax ?root c ppf errors =
+let eval_ocaml_deferred_js ~(block : Block.t) ?syntax ?root:_ c ppf errors =
   let cmd = block.contents |> remove_padding |> String.concat ~sep:"\n" in
-  let contains_warnings = String.is_infix ~affix:"Warning" in
+  let _contains_warnings = String.is_infix ~affix:"Warning" in
   incr id;
+  Format.eprintf "Evaluating deferred js\n%!";
   let id = Printf.sprintf "id_%d" !id in
   let mime_entries =
     match Mdx_top.compile_js c (Some id) cmd with
     | Ok s -> [Mime_printer.{ mime_type="text/javascript"; encoding=Noencoding; data=s}]
-    | Error lines -> []
+    | Error _lines -> []
   in
   let output =
     match mime_entries with
@@ -429,6 +430,8 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
                 eval_ocaml_deferred_js ~block:t ?syntax ?root c ppf errors)
             else
               let c = c () in
+              Format.eprintf "Evaluating non-deferred js\n%!";
+
               Mdx_top.in_env env (fun () ->
                 eval_ocaml ~block:t ?syntax ?root c ppf errors)
           in
