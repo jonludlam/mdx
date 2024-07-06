@@ -55,6 +55,10 @@ module UnixWorker = struct
 
   let sync_get _ = None
   let create_file ~name:_ ~content:_ = failwith "Not implemented"
+
+  let import_scripts _ = failwith "Not implemented"
+
+  let init_function _ = failwith "Not implemented"
       
 end
 
