@@ -34,6 +34,8 @@ depends: [
   "result"
   "alcotest" {with-test}
   "odoc" {with-doc}
+  "js_top_worker-rpc"
+  "js_top_worker-client"
 ]
 conflicts: [
   "result" {< "1.5"}
