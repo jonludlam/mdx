@@ -18,6 +18,7 @@ let find_value env loc id =
 #else
   Typetexp.find_value env loc id
 #endif
+|> fun (p,w,_,_) -> p,w
 
 let find_type env loc id =
 #if OCAML_VERSION >= (4, 10, 0)
@@ -39,6 +40,7 @@ let find_module env loc id =
 #else
   Typetexp.find_module env loc id
 #endif
+|> fun (p,w,_) -> p,w
 
 let find_modtype env loc id =
 #if OCAML_VERSION >= (4, 10, 0)
@@ -53,6 +55,8 @@ let find_class env loc id =
 #else
   Typetexp.find_class env loc id
 #endif
+|> fun (p,w,_) -> p,w
+
 
 let find_class_type env loc id =
 #if OCAML_VERSION >= (4, 10, 0)
@@ -89,6 +93,8 @@ let extension_constructor
   let ext_args =
     Cstr_tuple ext_args
   in
+  let ext_shape = Constructor_uniform_value in
+  let ext_constant = true in
   { ext_type_path
   ; ext_type_params
   ; ext_args
@@ -96,10 +102,12 @@ let extension_constructor
   ; ext_private
   ; ext_loc
   ; ext_attributes
+  ; ext_shape
+  ; ext_constant
 #if OCAML_VERSION >= (5, 3, 0)
   ; ext_uid = Uid.mk ~current_unit:None
 #elif OCAML_VERSION >= (4, 11, 0)
-  ; ext_uid = Uid.mk ~current_unit:"mdx"
+  ; ext_uid = Uid.mk ~current_unit:(Some (Compilation_unit.of_string "mdx"))
 #endif
   }
 
@@ -122,7 +130,7 @@ let match_env
     env =
   ignore (constraints, persistent, copy_types, value_unbound, module_unbound);
   match env with
-  | Env.Env_value (summary, id, _) ->
+  | Env.Env_value (summary, id, _, _) ->
     value summary id
   | Env_empty -> empty ()
   | Env_open (summary, pid) ->
@@ -294,7 +302,8 @@ let mk_fun loc exp =
     { Parsetree.pparam_loc= loc
     ; pparam_desc= Pparam_val (label, default, punit) }
   in
-  Ast_helper.Exp.function_ [param] None (Pfunction_body exp)
+  let function_constraint : Parsetree.function_constraint = { mode_annotations = []; ret_mode_annotations = []; ret_type_constraint = None } in
+  Ast_helper.Exp.function_ [param] function_constraint (Pfunction_body exp)
 #else
   Ast_helper.Exp.fun_ label default punit exp
 #endif

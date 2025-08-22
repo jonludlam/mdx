@@ -212,7 +212,7 @@ module Rewrite = struct
     | _ -> path
 
   let is_persistent_value env longident =
-    let is_persistent_path p = Ident.persistent (get_id_in_path p) in
+    let is_persistent_path p = Ident.is_global_or_predef (get_id_in_path p) in
     try is_persistent_path (fst (Compat_top.lookup_value longident env))
     with Not_found -> false
 
@@ -235,7 +235,7 @@ module Rewrite = struct
   let item ts env pstr_item tstr_item =
     match (pstr_item.Parsetree.pstr_desc, tstr_item.Typedtree.str_desc) with
     | ( Parsetree.Pstr_eval (e, _),
-        Typedtree.Tstr_eval ({ Typedtree.exp_type = typ; _ }, _) ) -> (
+      Typedtree.Tstr_eval ({ Typedtree.exp_type = typ; _ }, _, _) ) -> (
         match Compat_top.ctype_get_desc typ with
         | Types.Tconstr (path, _, _) -> apply ts env pstr_item path e
         | _ -> pstr_item)
@@ -523,7 +523,7 @@ let mty_path =
   let open Types in
   function
   | Mty_alias path -> Some path
-  | Mty_ident _ | Mty_signature _ | Mty_functor _ -> None
+  | Mty_ident _ | Mty_signature _ | Mty_functor _ | _ -> None
 
 let map_sig_attributes ~f =
   let open Types in
@@ -676,7 +676,7 @@ let init ~verbose:v ~silent:s ~verbose_findlib ~directives ~packages ~predicates
   t
 
 let envs = Hashtbl.create 8
-let is_predef_or_global id = Ident.is_predef id || Ident.global id
+let is_predef_or_global id = Ident.is_predef id || Ident.is_global id
 
 let rec save_summary acc s =
   let default_case summary = save_summary acc summary in
