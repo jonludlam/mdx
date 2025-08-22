@@ -107,7 +107,9 @@ let extension_constructor
 #if OCAML_VERSION >= (5, 3, 0)
   ; ext_uid = Uid.mk ~current_unit:None
 #elif OCAML_VERSION >= (4, 11, 0)
-  ; ext_uid = Uid.mk ~current_unit:(Some (Compilation_unit.of_string "mdx"))
+  ; ext_uid = (
+    let unit_info = Unit_info.make ~check_modname:false ~source_file:"__NONE__" ~for_pack_prefix:Compilation_unit.Prefix.empty Intf "mdx" in
+    Uid.mk ~current_unit:(Some unit_info))
 #endif
   }
 
