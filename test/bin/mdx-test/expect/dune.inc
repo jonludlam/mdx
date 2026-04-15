@@ -588,6 +588,18 @@
  (action (diff unclosed-block/test-case.md.expected unclosed-block.actual)))
 
 (rule
+ (target var-label.actual)
+ (deps (package mdx) (source_tree var-label))
+ (action
+  (with-stdout-to %{target}
+   (chdir var-label
+    (run ocaml-mdx test --output - test-case.md)))))
+
+(rule
+ (alias runtest)
+ (action (diff var-label/test-case.md var-label.actual)))
+
+(rule
  (target warnings.actual)
  (deps (package mdx) (source_tree warnings))
  (action

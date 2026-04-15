@@ -39,6 +39,7 @@ type t =
   | File of string
   | Part of string
   | Env of string
+  | Var of string
   | Skip
   | Non_det of non_det option
   | Version of Relation.t * Ocaml_version.t

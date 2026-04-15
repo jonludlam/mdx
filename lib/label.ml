@@ -86,6 +86,7 @@ type t =
   | File of string
   | Part of string
   | Env of string
+  | Var of string
   | Skip
   | Non_det of non_det option
   | Version of Relation.t * Ocaml_version.t
@@ -110,6 +111,7 @@ let pp ppf = function
   | File f -> Fmt.pf ppf "file=%s" f
   | Part p -> Fmt.pf ppf "part=%s" p
   | Env e -> Fmt.pf ppf "env=%s" e
+  | Var v -> Fmt.pf ppf "var=%s" v
   | Skip -> Fmt.string ppf "skip"
   | Non_det None -> Fmt.string ppf "non-deterministic"
   | Non_det (Some Nd_output) -> Fmt.string ppf "non-deterministic=output"
@@ -187,6 +189,7 @@ let interpret label value =
   | "file" -> requires_eq_value ~label ~value (fun x -> File x)
   | "part" -> requires_eq_value ~label ~value (fun x -> Part x)
   | "env" -> requires_eq_value ~label ~value (fun x -> Env x)
+  | "var" -> requires_eq_value ~label ~value (fun x -> Var x)
   | l when is_prefix ~prefix:"set-" l ->
       requires_eq_value ~label ~value (fun x ->
           Set (split_prefix ~prefix:"set-" l, x))

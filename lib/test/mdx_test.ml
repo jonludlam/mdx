@@ -339,6 +339,20 @@ let run_exn ~non_deterministic ~silent_eval ~record_backtrace ~syntax ~silent
 
   let test_block ~ppf ~temp_file t =
     let print_block () = Block.pp ?syntax ppf t in
+    let find_label f = Mdx.Util.List.find_map f t.Block.labels in
+    match find_label (function Label.Var x -> Some x | _ -> None) with
+    | Some name ->
+        let env_name = find_label (function Label.Env x -> Some x | _ -> None) in
+        let env = Ocaml_env.mk env_name in
+        let contents =
+          String.concat ~sep:"\n" (remove_padding t.Block.contents)
+        in
+        let phrase = Printf.sprintf "let %s = %S" name contents in
+        (match Mdx_top.in_env env (fun () -> eval_test ?root c [ phrase ]) with
+         | Ok _ -> ()
+         | Error e -> err_eval ~cmd:[ phrase ] e);
+        print_block ()
+    | None ->
     if Block.is_active ?section t then
       match Block.value t with
       | Raw _ -> print_block ()
