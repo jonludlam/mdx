@@ -58,7 +58,17 @@ let extract_code_block_info acc ~(location : Lexing.position) ~docstring =
         Option.map
           (fun { O.Ast.language; tags } ->
             let language_tag = O.Loc.value language in
-            let labels = Option.map O.Loc.value tags in
+            let labels =
+              match tags with
+              | [] -> None
+              | tags ->
+                  let render = function
+                    | `Tag s -> O.Loc.value s
+                    | `Binding (k, v) ->
+                        O.Loc.value k ^ "=" ^ O.Loc.value v
+                  in
+                  Some (String.concat "," (List.map render tags))
+            in
             Code_block.{ language_tag; labels })
           meta
       in

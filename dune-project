@@ -36,6 +36,7 @@
    (>= 1.7.2))
   (ocaml-version
    (>= 2.3.0))
+  odoc-parser
   (lwt :with-test)
   camlp-streams
   result

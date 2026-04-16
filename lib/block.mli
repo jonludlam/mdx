@@ -130,7 +130,7 @@ val mk_include :
 (** [mk_include] builds an include block from a comment [<!-- $MDX ... -->] that
     is not followed by a code block [``` ... ```]. *)
 
-val from_raw : Raw.t -> (t, [ `Msg of string ] list) Result.result
+val from_raw : Raw.t -> (t, [ `Msg of string ] list) result
 
 (** {2 Printers} *)
 
