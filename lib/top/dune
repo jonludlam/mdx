@@ -1,10 +1,27 @@
+(rule
+ (enabled_if (= %{ocaml-config:ox} true))
+ (target oxcaml-flag)
+ (action
+  (write-file %{target} "-D\nOXCAML")))
+
+(rule
+ (enabled_if (<> %{ocaml-config:ox} true))
+ (target oxcaml-flag)
+ (action
+  (write-file %{target} "")))
+
 (library
  (name mdx_top)
  (public_name mdx.top)
  (modes byte)
  (preprocess
   (action
-   (run %{bin:cppo} -V OCAML:%{ocaml_version} %{input-file})))
+   (run
+    %{bin:cppo}
+    -V
+    OCAML:%{ocaml_version}
+    %{read-lines:oxcaml-flag}
+    %{input-file})))
  (libraries
   unix
   mdx

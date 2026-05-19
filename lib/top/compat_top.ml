@@ -13,7 +13,10 @@ let lookup_value v env =
 #endif
 
 let find_value env loc id =
-#if OCAML_VERSION >= (4, 10, 0)
+#ifdef OXCAML
+  let path, desc, _mode = Env.lookup_value ~loc id env in
+  path, desc
+#elif OCAML_VERSION >= (4, 10, 0)
   Env.lookup_value ~loc id env
 #else
   Typetexp.find_value env loc id
@@ -27,14 +30,20 @@ let find_type env loc id =
 #endif
 
 let find_constructor env loc id =
-#if OCAML_VERSION >= (4, 10, 0)
+#ifdef OXCAML
+  let desc, _locks = Env.lookup_constructor ~loc Env.Positive id env in
+  desc
+#elif OCAML_VERSION >= (4, 10, 0)
   Env.lookup_constructor ~loc Env.Positive id env
 #else
   Typetexp.find_constructor env loc id
 #endif
 
 let find_module env loc id =
-#if OCAML_VERSION >= (4, 10, 0)
+#ifdef OXCAML
+  let path, decl, _mode = Env.lookup_module ~loc id env in
+  path, decl
+#elif OCAML_VERSION >= (4, 10, 0)
   Env.lookup_module ~loc id env
 #else
   Typetexp.find_module env loc id
@@ -48,7 +57,10 @@ let find_modtype env loc id =
 #endif
 
 let find_class env loc id =
-#if OCAML_VERSION >= (4, 10, 0)
+#ifdef OXCAML
+  let path, decl, _mode = Env.lookup_class ~loc id env in
+  path, decl
+#elif OCAML_VERSION >= (4, 10, 0)
   Env.lookup_class ~loc id env
 #else
   Typetexp.find_class env loc id
@@ -62,7 +74,9 @@ let find_class_type env loc id =
 #endif
 
 let type_structure env str loc =
-#if OCAML_VERSION >= (4, 14, 0)
+#ifdef OXCAML
+  let tstr, _, _, _, _, env =
+#elif OCAML_VERSION >= (4, 14, 0)
   let tstr, _, _, _, env =
 #else
   let tstr, _, _, env =
@@ -87,7 +101,19 @@ let extension_constructor
   =
   let open Types in
   let ext_args =
+#ifdef OXCAML
+    Cstr_tuple
+      (List.map
+         (fun ty ->
+           { ca_modalities = Mode.Modality.Const.id
+           ; ca_type = ty
+           ; ca_sort = Jkind_types.Sort.Const.Base Jkind_types.Sort.Value
+           ; ca_loc = Location.none
+           })
+         ext_args)
+#else
     Cstr_tuple ext_args
+#endif
   in
   { ext_type_path
   ; ext_type_params
@@ -96,10 +122,14 @@ let extension_constructor
   ; ext_private
   ; ext_loc
   ; ext_attributes
-#if OCAML_VERSION >= (5, 3, 0)
+#if OCAML_VERSION >= (5, 3, 0) || defined OXCAML
   ; ext_uid = Uid.mk ~current_unit:None
 #elif OCAML_VERSION >= (4, 11, 0)
   ; ext_uid = Uid.mk ~current_unit:"mdx"
+#endif
+#ifdef OXCAML
+  ; ext_shape = Types.Constructor_uniform_value
+  ; ext_constant = false
 #endif
   }
 
@@ -122,8 +152,13 @@ let match_env
     env =
   ignore (constraints, persistent, copy_types, value_unbound, module_unbound);
   match env with
+#ifdef OXCAML
+  | Env.Env_value (summary, id, _, _) ->
+    value summary id
+#else
   | Env.Env_value (summary, id, _) ->
     value summary id
+#endif
   | Env_empty -> empty ()
   | Env_open (summary, pid) ->
     open_ summary pid
@@ -132,7 +167,11 @@ let match_env
 #else
   | Env_functor_arg (summary, id) -> functor_arg summary id
 #endif
+#ifdef OXCAML
+  | Env_module (summary, id, presence, _, _, _) ->
+#else
   | Env_module (summary, id, presence, _) ->
+#endif
     let present = match presence with
       | Mp_present -> true
       | Mp_absent -> false
@@ -152,6 +191,9 @@ let match_env
   | Env_copy_types (summary, _) -> copy_types summary
 #endif
   | Env_persistent (summary, _) -> persistent summary
+#ifdef OXCAML
+  | Env_jkind (summary, _, _) -> type_ summary
+#endif
 
 let ctype_is_equal =
 #if OCAML_VERSION >= (4, 13, 0)
@@ -298,7 +340,16 @@ let mk_fun loc exp =
     { Parsetree.pparam_loc= loc
     ; pparam_desc= Pparam_val (label, default, punit) }
   in
+#ifdef OXCAML
+  let constraint_ : Parsetree.function_constraint =
+    { mode_annotations = []
+    ; ret_mode_annotations = []
+    ; ret_type_constraint = None }
+  in
+  Ast_helper.Exp.function_ [param] constraint_ (Pfunction_body exp)
+#else
   Ast_helper.Exp.function_ [param] None (Pfunction_body exp)
+#endif
 #else
   Ast_helper.Exp.fun_ label default punit exp
 #endif

@@ -217,7 +217,13 @@ module Rewrite = struct
     | _ -> path
 
   let is_persistent_value env longident =
-    let is_persistent_path p = Ident.persistent (get_id_in_path p) in
+    let is_persistent_path p =
+#ifdef OXCAML
+      Ident.is_global (get_id_in_path p)
+#else
+      Ident.persistent (get_id_in_path p)
+#endif
+    in
     try is_persistent_path (fst (Compat_top.lookup_value longident env))
     with Not_found -> false
 
@@ -240,7 +246,12 @@ module Rewrite = struct
   let item ts env pstr_item tstr_item =
     match (pstr_item.Parsetree.pstr_desc, tstr_item.Typedtree.str_desc) with
     | ( Parsetree.Pstr_eval (e, _),
-        Typedtree.Tstr_eval ({ Typedtree.exp_type = typ; _ }, _) ) -> (
+#ifdef OXCAML
+        Typedtree.Tstr_eval ({ Typedtree.exp_type = typ; _ }, _, _)
+#else
+        Typedtree.Tstr_eval ({ Typedtree.exp_type = typ; _ }, _)
+#endif
+      ) -> (
         match Compat_top.ctype_get_desc typ with
         | Types.Tconstr (path, _, _) -> apply ts env pstr_item path e
         | _ -> pstr_item)
@@ -465,13 +476,23 @@ let add_directive ~name ~doc kind =
                 s.txt
 #endif
               | Longident.Lapply _ ->
+#ifdef OXCAML
+                  Format.printf "Invalid path %a@."
+                    (Format_doc.compat Printtyp.longident) lid;
+#else
                   Format.printf "Invalid path %a@." Printtyp.longident lid;
+#endif
                   raise Exit
             in
             let id = Ident.create_persistent s in
             let sg = to_sig env loc id lid in
             Printtyp.wrap_printing_env ~error:false env (fun () ->
+#ifdef OXCAML
+                Format.printf "@[%a@]@."
+                  (Format_doc.compat Printtyp.signature) sg)
+#else
                 Format.printf "@[%a@]@." Printtyp.signature sg)
+#endif
           with
           | Not_found -> Format.printf "@[Unknown element.@]@."
           | Exit -> ()
@@ -520,9 +541,17 @@ let show_exception () =
       let ret_type =
         if desc.cstr_generalized then Some Predef.type_exn else None
       in
+      let ext_args =
+#ifdef OXCAML
+        List.map (fun (ca : Types.constructor_argument) -> ca.ca_type)
+          desc.cstr_args
+#else
+        desc.cstr_args
+#endif
+      in
       let ext =
         extension_constructor ~ext_type_path:Predef.path_exn ~ext_type_params:[]
-          ~ext_args:desc.cstr_args ~ext_ret_type:ret_type
+          ~ext_args ~ext_ret_type:ret_type
           ~ext_private:Asttypes.Public ~ext_loc:desc.cstr_loc
           ~ext_attributes:desc.cstr_attributes
       in
@@ -534,6 +563,9 @@ let mty_path =
   function
   | Mty_alias path -> Some path
   | Mty_ident _ | Mty_signature _ | Mty_functor _ -> None
+#ifdef OXCAML
+  | Mty_strengthen _ -> None
+#endif
 
 let map_sig_attributes ~f =
   let open Types in
@@ -686,7 +718,12 @@ let init ~verbose:v ~silent:s ~verbose_findlib ~directives ~packages ~predicates
   t
 
 let envs = Hashtbl.create 8
-let is_predef_or_global id = Ident.is_predef id || Ident.global id
+let is_predef_or_global id =
+#ifdef OXCAML
+  Ident.is_predef id || Ident.is_global id
+#else
+  Ident.is_predef id || Ident.global id
+#endif
 
 let rec save_summary acc s =
   let default_case summary = save_summary acc summary in
